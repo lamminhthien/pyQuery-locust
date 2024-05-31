@@ -1,47 +1,35 @@
-import random
+from bs4 import BeautifulSoup
 from locust import HttpUser, task, between
-from pyquery import PyQuery
 
-class StressTestProm(HttpUser):
-    wait_time = between(5, 9)
-    @task
+class StressTestPROM(HttpUser):
+    wait_time = between(1, 8)
+    
+    def on_start(self):
+        self.client.get("/prom?autoLoadTestPass=tCU9{Mx")
+    
+    def crawl(self, path):
+        response = self.client.get(path, name="[Page] "+path)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Discover linked pages
+            links = [a["href"] for a in soup.find_all("a", href=True)]
+            for link in links:
+                self.crawl(link)
+            
+            # Load static content (img, css, js)
+            resources = [(link["href"], "CSS") for link in soup.find_all("link", href=True)]
+            resources += [(script["src"], "JS") for script in soup.find_all("script", src=True)]
+            resources += [(img["src"], "IMG") for img in soup.find_all("img", src=True)]
 
-    # Test for backend and RDS side
-    def stress_test_prom_client_side(self):
-        # auto load test
-        self.client.get("/prom?autoLoadTest=tCU9{Mx")
-        # self.client.get("/prom")
-        # self.client.get("/")
-        # r = self.client.get("/prom")
-        # pq = PyQuery(r.content)
-
-        # # Find input email
-        # email_input = pq('input[placeholder*="Nhập email"]').eq(0)
-        # email_input.val("Thien1234@gmail.com")
-        # if (email_input):
-        #     print('Have email input')
-
-        # random_number = random.randint(1, 600)
-
-        # # Find input code
-        # code_input = pq('input[placeholder*="Nhập mã code"]').eq(0)
-        # code_input.val(random_number)
-        # if (code_input):
-        #     print('Have code input')
-
-        # # Find first people to vote
-        # first_person = pq.find('.flex.h-5.w-5.items-center.rounded-full.border.border-violet-600').eq(0)
-        # first_person.click()
-        # if (first_person):
-        #     print('Have First person')
-
-        # # Submit button
-        # submit_button = pq.find('button:contains("Bình chọn")').eq(0)
-        # submit_button.click()
-        # if (submit_button):
-        #     print('Bình chọn')
-
-        # Test backend
-        self.client.get("/prom")
+            for resource, res_type in resources:
+                print("Debug resource")
+                print(resource)
+                self.client.get(resource, name=f"[{res_type}] {resource}")
+            
+        # Go home after submit
         self.client.get("/")
-
+    
+    @task(1)
+    def stress_test_prom(self):
+        self.client.get("/prom?autoLoadTestPass=tCU9{Mx")
